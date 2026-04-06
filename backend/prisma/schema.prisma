@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum RoleName {
+  USER
+  CREATOR
+  ADMIN
+}
+
+/// Holds signup data until the user confirms their email with a 6-digit code.
+model PendingRegistration {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  nickname     String
+  codeHash     String   @map("code_hash")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("pending_registrations")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  nickname     String
+  avatarUrl    String?  @map("avatar_url")
+  blocked      Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  roles   UserRole[]
+  tests   Test[]     @relation("TestCreator")
+  results Result[]
+
+  @@map("users")
+}
+
+model Role {
+  id   String   @id @default(uuid())
+  name RoleName @unique
+
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Test {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @default("")
+  isPrivate   Boolean  @default(false) @map("is_private")
+  published   Boolean  @default(false)
+  shareToken  String?  @unique @map("share_token")
+  creatorId   String   @map("creator_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  creator   User       @relation("TestCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  questions Question[]
+  results   Result[]
+
+  @@index([creatorId])
+  @@map("tests")
+}
+
+model Question {
+  id        String   @id @default(uuid())
+  testId    String   @map("test_id")
+  order     Int
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  test    Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([testId])
+  @@map("questions")
+}
+
+model Answer {
+  id         String  @id @default(uuid())
+  questionId String  @map("question_id")
+  text       String
+  isCorrect  Boolean @default(false) @map("is_correct")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("answers")
+}
+
+model Result {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  testId                String   @map("test_id")
+  score                 Int
+  completionTimeSeconds Int      @map("completion_time_seconds")
+  tabSwitchCount        Int      @default(0) @map("tab_switch_count")
+  finishedByAntiCheat   Boolean  @default(false) @map("finished_by_anti_cheat")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  test Test @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([testId])
+  @@map("results")
+}
